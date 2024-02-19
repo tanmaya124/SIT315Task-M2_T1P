@@ -1,0 +1,63 @@
+#include <cstdlib>
+#include <ctime>
+#include <chrono>
+#include <fstream>
+#include <omp.h> // Include OpenMP header for parallelization
+
+using namespace std::chrono;
+
+const int MATRIX_SIZE = 400;
+const int NUM_THREADS = 4;
+
+// Populate a matrix with random values
+void generateRandomMatrix(int matrix[][MATRIX_SIZE]) {
+    for (int i = 0; i < MATRIX_SIZE; ++i)
+        for (int j = 0; j < MATRIX_SIZE; ++j)
+            matrix[i][j] = rand() % 100; // Fill each element with a random value between 0 and 99
+}
+
+// Multiply two matrices (parallelized using OpenMP)
+void multiplyMatrices(const int matrixA[][MATRIX_SIZE], const int matrixB[][MATRIX_SIZE], int resultMatrix[][MATRIX_SIZE]) {
+#pragma omp parallel for num_threads(NUM_THREADS)
+    for (int i = 0; i < MATRIX_SIZE; ++i) {
+        for (int j = 0; j < MATRIX_SIZE; ++j) {
+            resultMatrix[i][j] = 0;
+            for (int k = 0; k < MATRIX_SIZE; ++k)
+                resultMatrix[i][j] += matrixA[i][k] * matrixB[k][j];
+        }
+    }
+}
+
+int main() {
+    srand(time(nullptr)); // Seed the random number generator with the current time
+
+    int matrixA[MATRIX_SIZE][MATRIX_SIZE];
+    int matrixB[MATRIX_SIZE][MATRIX_SIZE];
+    int resultMatrix[MATRIX_SIZE][MATRIX_SIZE];
+
+    generateRandomMatrix(matrixA);
+    generateRandomMatrix(matrixB);
+
+    auto startTime = high_resolution_clock::now(); // Record the start time
+
+    // Perform matrix multiplication in parallel using OpenMP
+    multiplyMatrices(matrixA, matrixB, resultMatrix);
+
+    auto stopTime = high_resolution_clock::now(); // Record the stop time
+
+    // Calculate duration
+    auto duration = duration_cast<microseconds>(stopTime - startTime);
+    std::cout << "Matrix multiplication completed in: " << duration.count() << " microseconds" << std::endl;
+
+    // Write result to a file
+    std::ofstream outputFile("Parallel_Results_OpenMP.txt");
+    for (int i = 0; i < MATRIX_SIZE; ++i) {
+        for (int j = 0; j < MATRIX_SIZE; ++j)
+            outputFile << resultMatrix[i][j] << "\t";
+        outputFile << std::endl;
+    }
+    outputFile << "Execution time: " << duration.count() << " microseconds";
+    outputFile.close();
+
+    return 0;
+}
