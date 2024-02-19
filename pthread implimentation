@@ -1,0 +1,89 @@
+#include <iostream>             // Include the input/output stream library
+#include <cstdlib>              // Include the C standard library for general-purpose functions
+#include <ctime>                // Include the C time library for time-related functions
+#include <chrono>               // Include the C++ chrono library for time measurement
+#include <fstream>              // Include the C++ file stream library for file operations
+#include <pthread.h>            // Include the POSIX threads library
+
+using namespace std::chrono;   // Use the chrono namespace for time-related functions
+
+const int MATRIX_SIZE = 400;    // Define the size of the matrices
+const int NUM_THREADS = 4;      // Number of threads to use for parallelization
+
+struct ThreadData {             // Define a structure to hold data for each thread
+    int id;                     // Thread ID
+    int (*matrixA)[MATRIX_SIZE]; // Pointer to the first matrix
+    int (*matrixB)[MATRIX_SIZE]; // Pointer to the second matrix
+    int (*resultMatrix)[MATRIX_SIZE]; // Pointer to the result matrix
+};
+
+// Populate a matrix with random values
+void generateRandomMatrix(int matrix[][MATRIX_SIZE]) {
+    for (int i = 0; i < MATRIX_SIZE; ++i)
+        for (int j = 0; j < MATRIX_SIZE; ++j)
+            matrix[i][j] = rand() % 100;   // Fill each element with a random value between 0 and 99
+}
+
+// Multiply two matrices (threaded)
+void* matrixMultiplicationThread(void* threadArg) {
+    ThreadData* data = static_cast<ThreadData*>(threadArg); // Cast the void pointer to the ThreadData structure
+
+    for (int i = data->id; i < MATRIX_SIZE; i += NUM_THREADS) { // Perform matrix multiplication in a striped pattern
+        for (int j = 0; j < MATRIX_SIZE; ++j) {
+            data->resultMatrix[i][j] = 0;  // Initialize the result matrix element to 0
+            for (int k = 0; k < MATRIX_SIZE; ++k)
+                data->resultMatrix[i][j] += data->matrixA[i][k] * data->matrixB[k][j];  // Matrix multiplication
+        }
+    }
+
+    pthread_exit(nullptr); // Exit the thread
+}
+
+int main() {
+    srand(time(nullptr));   // Seed the random number generator with the current time
+
+    int matrixA[MATRIX_SIZE][MATRIX_SIZE];  // Define the first matrix
+    int matrixB[MATRIX_SIZE][MATRIX_SIZE];  // Define the second matrix
+    int resultMatrix[MATRIX_SIZE][MATRIX_SIZE]; // Define the result matrix
+
+    // Generate matrices with random values
+    generateRandomMatrix(matrixA);
+    generateRandomMatrix(matrixB);
+
+    pthread_t threads[NUM_THREADS];     // Array to store thread IDs
+    ThreadData threadData[NUM_THREADS]; // Array to store thread-specific data
+
+    auto startTime = high_resolution_clock::now(); // Record the start time
+
+    // Create threads and perform matrix multiplication in parallel
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        threadData[i].id = i;                  // Assign a unique ID to each thread
+        threadData[i].matrixA = matrixA;       // Provide a pointer to the first matrix
+        threadData[i].matrixB = matrixB;       // Provide a pointer to the second matrix
+        threadData[i].resultMatrix = resultMatrix; // Provide a pointer to the result matrix
+        pthread_create(&threads[i], nullptr, matrixMultiplicationThread, &threadData[i]); // Create a new thread
+    }
+
+    // Wait for all threads to finish
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        pthread_join(threads[i], nullptr); // Synchronize and wait for the thread to finish
+    }
+
+    auto stopTime = high_resolution_clock::now(); // Record the stop time
+
+    // Calculate duration
+    auto duration = duration_cast<microseconds>(stopTime - startTime);
+    std::cout << "Matrix multiplication completed in: " << duration.count() << " microseconds" << std::endl;
+
+    // Write result to a file
+    std::ofstream outputFile("Parallel_Results.txt");
+    for (int i = 0; i < MATRIX_SIZE; ++i) {
+        for (int j = 0; j < MATRIX_SIZE; ++j)
+            outputFile << resultMatrix[i][j] << "\t"; // Write each element to the file
+        outputFile << std::endl; // Move to the next line for the next row
+    }
+    outputFile << "Execution time: " << duration.count() << " microseconds"; // Write execution time to the file
+    outputFile.close(); // Close the file
+
+    return 0; // Return 0 to indicate successful program execution
+}
